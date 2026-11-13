@@ -1,0 +1,28 @@
+/**
+ * Server entry point. Serves the React app and the JSON API from one Bun
+ * process. ani-cli is driven from `ani-cli.ts`; HTTP handlers live in `api/`; register new ones in `routes` below.
+ */
+import index from "../client/index.html";
+import { handleEpisodes, handleLinks, handleSearch } from "./api/anime";
+
+const server = Bun.serve({
+  port: Number(process.env.PORT ?? 3000),
+
+  routes: {
+    "/api/search": { GET: handleSearch },
+    "/api/episodes": { GET: handleEpisodes },
+    "/api/links": { GET: handleLinks },
+    "/api/*": Response.json({ error: "Not found" }, { status: 404 }),
+
+    // Everything else is the SPA; react-router handles client-side routes.
+    "/*": index,
+  },
+
+  development: process.env.NODE_ENV !== "production" && {
+    hmr: true,
+    // Echo browser console logs to the server terminal.
+    console: true,
+  },
+});
+
+console.log(`keithwatch running at ${server.url}`);

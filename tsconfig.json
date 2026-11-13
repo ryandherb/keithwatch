@@ -23,7 +23,8 @@
     "noImplicitOverride": true,
 
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/client/*"],
+      "@shared/*": ["./src/shared/*"]
     },
 
     // Some stricter flags (disabled by default)

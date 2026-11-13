@@ -1,5 +1,5 @@
 /**
- * Client entry point (included by `client/index.html`). Mounts the router.
+ * Client entry point (included by `index.html`). Mounts the router.
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
