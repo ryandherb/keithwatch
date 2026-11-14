@@ -1,8 +1,12 @@
 import { getEpisodes, getStreamLinks } from "@/features/watch/api/watch";
+import { db, updateWatchHistory } from "@/lib/db";
 import type { LinksResponse, TranslationMode } from "@shared/types";
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+
+/** How often to save playback progress while the video is playing. */
+const SAVE_INTERVAL_MS = 5000;
 
 /**
  * Plays one episode. Everything needed to find it lives in the URL so a
@@ -28,8 +32,15 @@ export default function PlayerPage() {
     const [error, setError] = useState<string | null>(null);
 
     const videoRef = useRef<HTMLVideoElement>(null);
+    /** Saved playtime to seek to once the restored episode's stream loads. */
+    const pendingSeekRef = useRef<number | null>(null);
+    /** Episode the currently attached stream belongs to; null while switching. */
+    const streamEpRef = useRef<string | null>(null);
+    /** Title whose watch history has been checked; streams wait for this. */
+    const [historyTitle, setHistoryTitle] = useState<string | null>(null);
 
     const validParams = query != null && Number.isInteger(index) && index >= 1;
+    const historyReady = title != null && historyTitle === title;
     // Fall back to the first episode until the user picks one.
     const currentEp = epParam ?? episodes[0] ?? null;
 
@@ -47,6 +58,33 @@ export default function PlayerPage() {
             { replace: true },
         );
     };
+
+    // Restore the saved episode and position once per show. An `ep` already in
+    // the URL (refresh, shared link) wins; the saved position is only used if
+    // it belongs to the episode being opened.
+    useEffect(() => {
+        if (!validParams || title == null) return;
+        let cancelled = false;
+
+        db.watchHistory
+            .get(title)
+            .then((entry) => {
+                if (cancelled || !entry) return;
+                if (epParam == null || epParam === entry.ep) {
+                    if (epParam == null) updateParams({ ep: entry.ep });
+                    pendingSeekRef.current = entry.playtime;
+                }
+            })
+            .catch((err) => console.warn("Couldn't read watch history:", err))
+            .finally(() => {
+                if (!cancelled) setHistoryTitle(title);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+        // Only re-run for a different show; epParam is read once on purpose.
+    }, [validParams, title]);
 
     // Load the episode list whenever the show or sub/dub changes.
     useEffect(() => {
@@ -69,17 +107,22 @@ export default function PlayerPage() {
         return () => controller.abort();
     }, [validParams, query, index, mode]);
 
-    // Fetch stream links for the current episode.
+    // Fetch stream links for the current episode (after history is restored,
+    // so we don't start loading episode 1 and then jump to the saved one).
     useEffect(() => {
-        if (!validParams || currentEp == null) return;
+        if (!validParams || !historyReady || currentEp == null) return;
         const controller = new AbortController();
 
+        streamEpRef.current = null;
         setLinks(null);
         setError(null);
         setLinksLoading(true);
 
         getStreamLinks(query, index, currentEp, { mode, signal: controller.signal })
-            .then(setLinks)
+            .then((result) => {
+                streamEpRef.current = currentEp;
+                setLinks(result);
+            })
             .catch((err) => {
                 if (!controller.signal.aborted) setError(err.message);
             })
@@ -88,7 +131,7 @@ export default function PlayerPage() {
             });
 
         return () => controller.abort();
-    }, [validParams, query, index, currentEp, mode]);
+    }, [validParams, historyReady, query, index, currentEp, mode]);
 
     // Attach the stream to the <video>. Safari plays HLS natively; other
     // browsers need hls.js. Non-HLS links (e.g. .mp4) are set directly.
@@ -96,6 +139,16 @@ export default function PlayerPage() {
         const video = videoRef.current;
         const src = links?.selected;
         if (!video || !src) return;
+
+        // Jump to the restored position once the video knows its duration;
+        // setting currentTime before then gets reset when the source attaches.
+        const applySavedTime = () => {
+            if (pendingSeekRef.current == null) return;
+            video.currentTime = pendingSeekRef.current;
+            pendingSeekRef.current = null;
+        };
+        video.addEventListener("loadedmetadata", applySavedTime, { once: true });
+        const removeSeekListener = () => video.removeEventListener("loadedmetadata", applySavedTime);
 
         // Links are /api/stream?url=<encoded upstream>, so check the upstream URL.
         const upstream = new URL(src, location.href).searchParams.get("url") ?? src;
@@ -126,15 +179,60 @@ export default function PlayerPage() {
             });
             hls.loadSource(src);
             hls.attachMedia(video);
-            return () => hls.destroy();
+            return () => {
+                removeSeekListener();
+                hls.destroy();
+            };
         }
 
         video.src = src;
         return () => {
+            removeSeekListener();
             video.removeAttribute("src");
             video.load();
         };
     }, [links]);
+
+    // Save progress every few seconds while playing, and whenever the user
+    // pauses. The episode comes from streamEpRef, not currentEp, so a pause
+    // fired while switching episodes can't save the old position under the
+    // new episode.
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video || !historyReady || title == null) return;
+
+        let lastSaved = 0;
+        const save = () => {
+            const ep = streamEpRef.current;
+            // Don't overwrite the saved position before we've seeked to it.
+            if (ep == null || pendingSeekRef.current != null || video.readyState === 0) return;
+            lastSaved = Date.now();
+            updateWatchHistory(title, { ep, playtime: video.currentTime }).catch((err) =>
+                console.warn("Couldn't save watch history:", err),
+            );
+        };
+        const onTimeUpdate = () => {
+            if (Date.now() - lastSaved >= SAVE_INTERVAL_MS) save();
+        };
+
+        video.addEventListener("timeupdate", onTimeUpdate);
+        video.addEventListener("pause", save);
+        return () => {
+            video.removeEventListener("timeupdate", onTimeUpdate);
+            video.removeEventListener("pause", save);
+        };
+    }, [historyReady, title]);
+
+    /** Switches episode and records it as the show's current episode. */
+    const selectEpisode = (ep: string) => {
+        pendingSeekRef.current = null;
+        updateParams({ ep });
+        if (title != null) {
+            updateWatchHistory(title, { ep, playtime: 0 }).catch((err) =>
+                console.warn("Couldn't save watch history:", err),
+            );
+        }
+    };
 
     if (!validParams) {
         return (
@@ -165,7 +263,10 @@ export default function PlayerPage() {
             <div>
                 <button
                     className="button"
-                    onClick={() => updateParams({ mode: mode === "sub" ? "dub" : "sub", ep: null })}
+                    onClick={() => {
+                        pendingSeekRef.current = null;
+                        updateParams({ mode: mode === "sub" ? "dub" : "sub", ep: null });
+                    }}
                 >
                     Switch to {mode === "sub" ? "dub" : "sub"}
                 </button>
@@ -180,7 +281,7 @@ export default function PlayerPage() {
                             className="button"
                             aria-current={ep === currentEp}
                             disabled={ep === currentEp}
-                            onClick={() => updateParams({ ep })}
+                            onClick={() => selectEpisode(ep)}
                         >
                             {ep}
                         </button>
