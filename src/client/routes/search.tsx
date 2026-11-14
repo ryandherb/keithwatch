@@ -10,19 +10,25 @@ export default function SearchPage() {
     const query = searchParams.get("q")
 
     useEffect(() => {
-        const fetchAnime = async () => {
-            if (query == null) {
-                alert("Query is invalid. Please try again.");
-                return;
-            }
-
-            const data = await searchAnime(query); 
-
-            setSearchResults(data);
+        if (query == null) {
+            alert("Query is invalid. Please try again.");
+            return;
         }
 
-        fetchAnime(); 
-    })
+        const controller = new AbortController();
+        searchAnime(query, controller.signal)
+            .then(setSearchResults)
+            .catch((err) => {
+                if (!controller.signal.aborted) console.error(err);
+            });
+
+        // Cancel the in-flight search if the query changes or the page unmounts.
+        return () => controller.abort();
+    }, [query])
+
+    const handleSelect = (title: string) => {
+        
+    }
 
     return (
         <section>
@@ -32,10 +38,16 @@ export default function SearchPage() {
             <ul className="card-grid">
                 {searchResults.map((result, index) => (
                     <li key={index} className="card">
-                        <div className="card__poster" aria-hidden="true">
-                            {result.title.charAt(0)}
-                        </div>
-                        <span className="card__title">{result.title}</span>
+                        <button className="card_button" onClick={() => handleSelect(result.title)}>
+                            <div className="card__poster" aria-hidden="true">
+                                {result.image ? (
+                                    <img src={result.image} alt="" loading="lazy" />
+                                ) : (
+                                    result.title.charAt(0)
+                                )}
+                            </div>
+                            <span className="card__title">{result.title}</span>
+                        </button>
                     </li>
                 ))}
             </ul>
