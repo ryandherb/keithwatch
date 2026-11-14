@@ -1,9 +1,10 @@
 import { getEpisodes, getStreamLinks } from "@/features/watch/api/watch";
-import { db, updateWatchHistory } from "@/lib/db";
+import { db, toggleFavorite, toggleWatchList, updateWatchHistory, useWatchHistory } from "@/lib/db";
 import type { LinksResponse, TranslationMode } from "@shared/types";
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { AlertCircle, ChevronLeft, ChevronRight, Eye, LoaderCircle, Star } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
 
 /** How often to save playback progress while the video is playing. */
 const SAVE_INTERVAL_MS = 5000;
@@ -39,10 +40,18 @@ export default function PlayerPage() {
     /** Title whose watch history has been checked; streams wait for this. */
     const [historyTitle, setHistoryTitle] = useState<string | null>(null);
 
+    // Live, so the buttons stay in sync with toggles made elsewhere (e.g. a card).
+    const entry = useWatchHistory(title ?? "");
+    const isFavorite = entry?.isFavorite ?? false;
+    const onWatchList = entry?.onWatchList ?? false;
+
     const validParams = query != null && Number.isInteger(index) && index >= 1;
     const historyReady = title != null && historyTitle === title;
     // Fall back to the first episode until the user picks one.
     const currentEp = epParam ?? episodes[0] ?? null;
+    const currentIndex = currentEp == null ? -1 : episodes.indexOf(currentEp);
+    const prevEp = currentIndex > 0 ? episodes[currentIndex - 1] : null;
+    const nextEp = currentIndex >= 0 && currentIndex < episodes.length - 1 ? episodes[currentIndex + 1] : null;
 
     /** Updates URL params without adding a history entry per click. */
     const updateParams = (changes: Record<string, string | null>) => {
@@ -225,6 +234,7 @@ export default function PlayerPage() {
 
     /** Switches episode and records it as the show's current episode. */
     const selectEpisode = (ep: string) => {
+        if (ep === currentEp) return;
         pendingSeekRef.current = null;
         updateParams({ ep });
         if (title != null) {
@@ -234,60 +244,140 @@ export default function PlayerPage() {
         }
     };
 
+    /** Switches sub/dub. Episode lists differ between them, so start over. */
+    const selectMode = (next: TranslationMode) => {
+        if (next === mode) return;
+        pendingSeekRef.current = null;
+        updateParams({ mode: next, ep: null });
+    };
+
+    const handleFavorite = () => {
+        if (title == null) return;
+        toggleFavorite(title).catch((err) => console.warn("Couldn't update favorite:", err));
+    };
+
+    const handleWatchList = () => {
+        if (title == null) return;
+        toggleWatchList(title).catch((err) => console.warn("Couldn't update watchlist:", err));
+    };
+
     if (!validParams) {
         return (
-            <section className="empty-state">
-                <p>Missing or invalid show. Go back and pick a search result.</p>
-            </section>
+            <div className="empty-state">
+                <AlertCircle size={28} aria-hidden="true" />
+                <p className="empty-state__title">Missing or invalid show</p>
+                <p className="empty-state__hint">Go back and pick a search result.</p>
+                <Link className="button" to="/">Back to search</Link>
+            </div>
         );
     }
 
     return (
-        <section>
-            <header className="page-header">
-                <h1>
-                    {title}
-                    {currentEp != null && ` — Episode ${currentEp}`}
-                </h1>
+        <>
+            <header className="page-header player__header">
+                <div>
+                    <h1>{title}</h1>
+                    <p className="player__subtitle">
+                        {currentEp == null
+                            ? "Loading…"
+                            : episodes.length > 0
+                              ? `Episode ${currentEp} of ${episodes.length}`
+                              : `Episode ${currentEp}`}
+                    </p>
+                </div>
+                <div className="player__actions">
+                    <button
+                        className="button button--favorite"
+                        aria-pressed={isFavorite}
+                        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                        onClick={handleFavorite}
+                    >
+                        <Star size={16} fill={isFavorite ? "currentColor" : "none"} aria-hidden="true" />
+                        Favorite
+                    </button>
+                    <button
+                        className="button button--watchlist"
+                        aria-pressed={onWatchList}
+                        title={onWatchList ? "Remove from watchlist" : "Add to watchlist"}
+                        onClick={handleWatchList}
+                    >
+                        <Eye size={16} aria-hidden="true" />
+                        Watchlist
+                    </button>
+                    <div className="segmented" role="group" aria-label="Audio">
+                        {(["sub", "dub"] as const).map((m) => (
+                            <button
+                                key={m}
+                                className="segmented__option"
+                                aria-pressed={mode === m}
+                                onClick={() => selectMode(m)}
+                            >
+                                {m === "sub" ? "Sub" : "Dub"}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </header>
 
-            {error && <p role="alert">{error}</p>}
+            {error && (
+                <div className="alert" role="alert">
+                    <AlertCircle size={18} aria-hidden="true" />
+                    <span>{error}</span>
+                </div>
+            )}
 
-            <video ref={videoRef} controls autoPlay style={{ width: "100%" }}>
-                {links?.subtitles && (
-                    <track kind="subtitles" src={links.subtitles} srcLang="en" label="English" default />
+            <div className="player">
+                <video ref={videoRef} className="player__video" controls autoPlay>
+                    {links?.subtitles && (
+                        <track kind="subtitles" src={links.subtitles} srcLang="en" label="English" default />
+                    )}
+                </video>
+                {linksLoading && (
+                    <div className="player__overlay">
+                        <LoaderCircle className="spinner" size={28} aria-hidden="true" />
+                        <span>Loading stream…</span>
+                    </div>
                 )}
-            </video>
-            {linksLoading && <p>Loading stream…</p>}
+            </div>
 
-            <div>
-                <button
-                    className="button"
-                    onClick={() => {
-                        pendingSeekRef.current = null;
-                        updateParams({ mode: mode === "sub" ? "dub" : "sub", ep: null });
-                    }}
-                >
-                    Switch to {mode === "sub" ? "dub" : "sub"}
+            <div className="player__controls">
+                <button className="button" disabled={prevEp == null} onClick={() => prevEp && selectEpisode(prevEp)}>
+                    <ChevronLeft size={16} aria-hidden="true" />
+                    Previous
+                </button>
+                <button className="button" disabled={nextEp == null} onClick={() => nextEp && selectEpisode(nextEp)}>
+                    Next
+                    <ChevronRight size={16} aria-hidden="true" />
                 </button>
             </div>
 
-            <h2 className="section__title">Episodes</h2>
-            {episodesLoading && <p>Loading episodes…</p>}
-            <ul className="episode-list">
-                {episodes.map((ep) => (
-                    <li key={ep}>
-                        <button
-                            className="button"
-                            aria-current={ep === currentEp}
-                            disabled={ep === currentEp}
-                            onClick={() => selectEpisode(ep)}
-                        >
-                            {ep}
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </section>
+            <section className="section">
+                <h2 className="section__title section__title--row">
+                    Episodes
+                    {episodes.length > 0 && <span className="count-badge">{episodes.length}</span>}
+                </h2>
+                {episodesLoading ? (
+                    <p className="status-text">
+                        <LoaderCircle className="spinner" size={16} aria-hidden="true" />
+                        Loading episodes…
+                    </p>
+                ) : (
+                    <ul className="episode-grid">
+                        {episodes.map((ep) => (
+                            <li key={ep}>
+                                <button
+                                    className="episode"
+                                    aria-current={ep === currentEp ? "true" : undefined}
+                                    aria-label={`Episode ${ep}`}
+                                    onClick={() => selectEpisode(ep)}
+                                >
+                                    {ep}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+        </>
     );
 }

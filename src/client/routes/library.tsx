@@ -18,7 +18,7 @@ interface LibrarySectionProps {
 function LibrarySection({ heading, icon: Icon, entries, emptyHint }: LibrarySectionProps) {
     return (
         <section className="section">
-            <h2 className="section__title library__heading">
+            <h2 className="section__title section__title--row">
                 <Icon size={18} aria-hidden="true" />
                 {heading}
                 {entries && <span className="count-badge">{entries.length}</span>}
