@@ -3,6 +3,7 @@
  * process. ani-cli is driven from `ani-cli.ts`; HTTP handlers live in `api/`; register new ones in `routes` below.
  */
 import index from "../client/index.html";
+import { findAniCli } from "./ani-cli";
 import { handleEpisodes, handleLinks, handleSearch } from "./api/anime";
 import { handleStream } from "./api/stream";
 
@@ -28,3 +29,10 @@ const server = Bun.serve({
 });
 
 console.log(`keithwatch running at ${server.url}`);
+
+const aniCliPath = findAniCli(); 
+if(aniCliPath){
+  console.log(`Using ani-cli at ${aniCliPath}`);
+} else {
+  console.warn("No path found for ani-cli.");
+}

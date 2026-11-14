@@ -10,7 +10,7 @@
 export interface SearchResult {
   index: number;
   title: string;
-  image?: string; 
+  image?: string;
 }
 
 export type TranslationMode = "sub" | "dub";
@@ -41,4 +41,8 @@ export type LinksResponse = StreamLinks;
 
 export interface ApiError {
   error: string;
+}
+
+export interface StatusResponse {
+  aniCli: { installed: boolean; path: string | null };
 }
