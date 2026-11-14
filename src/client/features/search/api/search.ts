@@ -15,8 +15,18 @@ export async function searchAnime(query: string, signal?: AbortSignal): Promise<
     console.warn("Couldn't load cover images:", err);
     return new Map<string, string>();
   });
-  return data.results.map((r) => ({ ...r, image: covers.get(r.title) ?? r.image }));
+  const results = data.results.map((r) => ({ ...r, image: covers.get(r.title) ?? r.image }));
+  for (const r of results) if (r.image) resultImages.set(r.title, r.image);
+  return results;
 }
+
+/**
+ * Image URL of every search result shown this session, by title. Lets pages
+ * that only know a title (like the player) save the cover the search showed.
+ */
+const resultImages = new Map<string, string>();
+
+export const getResultImage = (title: string) => resultImages.get(title);
 
 // ---------------------------------------------------------------------------
 // AniList cover images

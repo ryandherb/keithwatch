@@ -1,3 +1,4 @@
+import { getResultImage } from "@/features/search/api/search";
 import { getEpisodes, getStreamLinks } from "@/features/watch/api/watch";
 import { db, toggleFavorite, toggleWatchList, updateWatchHistory, useWatchHistory } from "@/lib/db";
 import type { LinksResponse, TranslationMode } from "@shared/types";
@@ -25,6 +26,9 @@ export default function PlayerPage() {
     const title = searchParams.get("t") ?? query;
     const mode: TranslationMode = searchParams.get("mode") === "dub" ? "dub" : "sub";
     const epParam = searchParams.get("ep");
+    // Cover from the search that led here, saved if this page creates the show's entry.
+    // Undefined after a refresh or shared link, since nothing was searched this session.
+    const imageUrl = title == null ? undefined : getResultImage(title);
 
     const [episodes, setEpisodes] = useState<string[]>([]);
     const [episodesLoading, setEpisodesLoading] = useState(false);
@@ -216,7 +220,7 @@ export default function PlayerPage() {
             // Don't overwrite the saved position before we've seeked to it.
             if (ep == null || pendingSeekRef.current != null || video.readyState === 0) return;
             lastSaved = Date.now();
-            updateWatchHistory(title, { ep, playtime: video.currentTime, query, index }).catch((err) =>
+            updateWatchHistory(title, { ep, playtime: video.currentTime, query, index }, imageUrl).catch((err) =>
                 console.warn("Couldn't save watch history:", err),
             );
         };
@@ -230,7 +234,7 @@ export default function PlayerPage() {
             video.removeEventListener("timeupdate", onTimeUpdate);
             video.removeEventListener("pause", save);
         };
-    }, [historyReady, title, query, index]);
+    }, [historyReady, title, query, index, imageUrl]);
 
     /** Switches episode and records it as the show's current episode. */
     const selectEpisode = (ep: string) => {
@@ -238,7 +242,7 @@ export default function PlayerPage() {
         pendingSeekRef.current = null;
         updateParams({ ep });
         if (title != null && query != null) {
-            updateWatchHistory(title, { ep, playtime: 0, query, index }).catch((err) =>
+            updateWatchHistory(title, { ep, playtime: 0, query, index }, imageUrl).catch((err) =>
                 console.warn("Couldn't save watch history:", err),
             );
         }
@@ -253,12 +257,12 @@ export default function PlayerPage() {
 
     const handleFavorite = () => {
         if (title == null) return;
-        toggleFavorite(title).catch((err) => console.warn("Couldn't update favorite:", err));
+        toggleFavorite(title, imageUrl).catch((err) => console.warn("Couldn't update favorite:", err));
     };
 
     const handleWatchList = () => {
         if (title == null) return;
-        toggleWatchList(title).catch((err) => console.warn("Couldn't update watchlist:", err));
+        toggleWatchList(title, imageUrl).catch((err) => console.warn("Couldn't update watchlist:", err));
     };
 
     if (!validParams) {

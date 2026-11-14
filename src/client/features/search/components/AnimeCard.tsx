@@ -30,11 +30,11 @@ export default function AnimeCard({ title, image, to }: AnimeCardProps) {
         : null;
 
     const handleFavorite = () => {
-        toggleFavorite(title).catch((err) => console.warn("Couldn't update favorite:", err));
+        toggleFavorite(title, image).catch((err) => console.warn("Couldn't update favorite:", err));
     };
 
     const handleWatchList = () => {
-        toggleWatchList(title).catch((err) => console.warn("Couldn't update watchlist:", err));
+        toggleWatchList(title, image).catch((err) => console.warn("Couldn't update watchlist:", err));
     };
 
     return (

@@ -7,13 +7,14 @@ interface WatchHistory {
     playtime: number;
     isFavorite?: boolean;
     onWatchList?: boolean;
-    /** Set once the show has been played (or an episode picked) in the player. */
+
     hasWatched?: boolean;
-    /** When the show was last played, in ms since epoch. Orders "Continue Watching". */
     lastWatched?: number;
-    /** ani-cli identifies a show by (query, index); saved so the library can reopen the player. */
+
     query?: string;
     index?: number;
+
+    image?: Blob;
 }
 
 const db = new Dexie("watchDataDB") as Dexie & {
@@ -37,8 +38,26 @@ db.version(2)
             }),
     );
 
-const addWatchHistory = (title: string) =>
-    db.watchHistory.put({ title, ep: "1", playtime: 0 });
+/** Downloads an image as a Blob. Returns undefined on failure: a missing cover shouldn't block saving. */
+const fetchImage = async (imageUrl: string) => {
+    try {
+        const response = await fetch(imageUrl);
+        return response.ok ? await response.blob() : undefined;
+    } catch (err) {
+        console.warn("Couldn't save cover image:", err);
+        return undefined;
+    }
+};
+
+/**
+ * Cover image for a show that has no entry yet. Shows that already have an
+ * entry get undefined, so the image is only ever saved when the entry is created.
+ * Must run outside a Dexie transaction: awaiting fetch() inside one commits it early.
+ */
+const imageForNewEntry = async (title: string, imageUrl?: string) => {
+    if (!imageUrl || (await db.watchHistory.get(title))) return undefined;
+    return fetchImage(imageUrl);
+};
 
 const useWatchHistory = (title: string) =>
     useLiveQuery(() => db.watchHistory.get(title), [title]);
@@ -61,43 +80,52 @@ const useInProgress = () =>
 /**
  * Updates the saved episode and/or playtime for a show, creating the entry
  * (starting at episode 1, 0:00) if the show hasn't been watched before.
- * Also marks it as watched and bumps lastWatched.
+ * Also marks it as watched and bumps lastWatched. `imageUrl` is saved as the
+ * cover only when this call creates the entry.
  */
-const updateWatchHistory = (title: string, changes: Partial<Omit<WatchHistory, "title">>) =>
-    db.transaction("rw", db.watchHistory, async () => {
+const updateWatchHistory = async (
+    title: string,
+    changes: Partial<Omit<WatchHistory, "title">>,
+    imageUrl?: string,
+) => {
+    const image = await imageForNewEntry(title, imageUrl);
+    return db.transaction("rw", db.watchHistory, async () => {
         const existing = await db.watchHistory.get(title);
         await db.watchHistory.put({
             ep: "1",
             playtime: 0,
-            ...existing,
+            ...(existing ?? { image }),
             ...changes,
             title,
             hasWatched: true,
             lastWatched: Date.now(),
         });
     });
+};
 
 type ToggleField = "isFavorite" | "onWatchList";
 
 /**
  * Flips a boolean flag on a show, creating its entry (episode 1, 0:00) if it
- * hasn't been watched yet. Resolves to the new value.
+ * hasn't been watched yet. `imageUrl` is saved as the cover only when this call
+ * creates the entry. Resolves to the new value.
  */
-const toggleField = (title: string, field: ToggleField) =>
-    db.transaction("rw", db.watchHistory, async () => {
+const toggleField = async (title: string, field: ToggleField, imageUrl?: string) => {
+    const image = await imageForNewEntry(title, imageUrl);
+    return db.transaction("rw", db.watchHistory, async () => {
         const existing = await db.watchHistory.get(title);
         const next = !existing?.[field];
-        await db.watchHistory.put({ ep: "1", playtime: 0, ...existing, [field]: next, title });
+        await db.watchHistory.put({ ep: "1", playtime: 0, ...(existing ?? { image }), [field]: next, title });
         return next;
     });
+};
 
-const toggleFavorite = (title: string) => toggleField(title, "isFavorite");
-const toggleWatchList = (title: string) => toggleField(title, "onWatchList");
+const toggleFavorite = (title: string, imageUrl?: string) => toggleField(title, "isFavorite", imageUrl);
+const toggleWatchList = (title: string, imageUrl?: string) => toggleField(title, "onWatchList", imageUrl);
 
 export type { WatchHistory };
 export {
     db,
-    addWatchHistory,
     useWatchHistory,
     updateWatchHistory,
     toggleFavorite,
