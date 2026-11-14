@@ -6,8 +6,8 @@ import { createBrowserRouter } from "react-router";
 import RootLayout from "./routes/root";
 import ErrorPage from "./routes/error";
 import HomePage from "./routes/home";
-import AboutPage from "./routes/about";
 import NotFoundPage from "./routes/not-found";
+import SearchPage from "./routes/search";
 
 export const router = createBrowserRouter([
   {
@@ -16,7 +16,7 @@ export const router = createBrowserRouter([
     ErrorBoundary: ErrorPage,
     children: [
       { index: true, Component: HomePage },
-      { path: "about", Component: AboutPage },
+      { path: "/search", Component: SearchPage },
       { path: "*", Component: NotFoundPage },
     ],
   },

@@ -2,7 +2,6 @@ import { NavLink } from "react-router";
 
 const links = [
   { to: "/", label: "Home" },
-  { to: "/about", label: "About" },
 ];
 
 export function NavBar() {
