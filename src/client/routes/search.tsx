@@ -1,4 +1,5 @@
 import { searchAnime } from "@/features/search/api/search";
+import AnimeCard from "@/features/search/components/AnimeCard";
 import type { SearchResult } from "@shared/types";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router"
@@ -45,19 +46,8 @@ export default function SearchPage() {
                 <h1>Search results for "{query}"</h1>
             </header>
             <ul className="card-grid">
-                {searchResults.map((result, index) => (
-                    <li key={index} className="card">
-                        <button className="card_button" onClick={() => handleSelect(result)}>
-                            <div className="card__poster" aria-hidden="true">
-                                {result.image ? (
-                                    <img src={result.image} alt="" loading="lazy" />
-                                ) : (
-                                    result.title.charAt(0)
-                                )}
-                            </div>
-                            <span className="card__title">{result.title}</span>
-                        </button>
-                    </li>
+                {searchResults.map((result) => (
+                    <AnimeCard key={result.index} result={result} onSelect={handleSelect} />
                 ))}
             </ul>
         </section>

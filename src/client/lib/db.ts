@@ -5,6 +5,8 @@ interface WatchHistory {
     title: string;
     ep: string;
     playtime: number;
+    isFavorite?: boolean;
+    onWatchList?: boolean;
 }
 
 const db = new Dexie("watchDataDB") as Dexie & {
@@ -12,7 +14,7 @@ const db = new Dexie("watchDataDB") as Dexie & {
 };
 
 db.version(1).stores({
-    watchHistory: "title", // title is the primary key
+    watchHistory: "title",
 });
 
 const addWatchHistory = (title: string) =>
@@ -31,5 +33,22 @@ const updateWatchHistory = (title: string, changes: Partial<Omit<WatchHistory, "
         await db.watchHistory.put({ ep: "1", playtime: 0, ...existing, ...changes, title });
     });
 
+type ToggleField = "isFavorite" | "onWatchList";
+
+/**
+ * Flips a boolean flag on a show, creating its entry (episode 1, 0:00) if it
+ * hasn't been watched yet. Resolves to the new value.
+ */
+const toggleField = (title: string, field: ToggleField) =>
+    db.transaction("rw", db.watchHistory, async () => {
+        const existing = await db.watchHistory.get(title);
+        const next = !existing?.[field];
+        await db.watchHistory.put({ ep: "1", playtime: 0, ...existing, [field]: next, title });
+        return next;
+    });
+
+const toggleFavorite = (title: string) => toggleField(title, "isFavorite");
+const toggleWatchList = (title: string) => toggleField(title, "onWatchList");
+
 export type { WatchHistory };
-export { db, addWatchHistory, useWatchHistory, updateWatchHistory };
+export { db, addWatchHistory, useWatchHistory, updateWatchHistory, toggleFavorite, toggleWatchList };
