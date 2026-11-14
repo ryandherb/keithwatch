@@ -136,6 +136,11 @@ export async function version(): Promise<string> {
   return stripAnsi(stdout).trim();
 }
 
+/** Full path to the ani-cli binary, or null if there isn't one */
+export function findAniCli(): string | null {
+  return Bun.which(ANI_CLI);
+}
+
 // ---------------------------------------------------------------------------
 // Argument helpers
 // ---------------------------------------------------------------------------
