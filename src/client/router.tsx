@@ -9,6 +9,7 @@ import HomePage from "./routes/home";
 import NotFoundPage from "./routes/not-found";
 import SearchPage from "./routes/search";
 import PlayerPage from "./routes/player";
+import Library from "./routes/library";
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
     ErrorBoundary: ErrorPage,
     children: [
       { index: true, Component: HomePage },
+      { path: "/library", Component: Library },
       { path: "/search", Component: SearchPage },
       { path: "/player", Component: PlayerPage },
       { path: "*", Component: NotFoundPage },

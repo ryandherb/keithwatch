@@ -23,6 +23,14 @@ const addWatchHistory = (title: string) =>
 const useWatchHistory = (title: string) =>
     useLiveQuery(() => db.watchHistory.get(title), [title]);
 
+/** Live list of favorited shows; re-renders when favorites change. */
+const useFavorites = () =>
+    useLiveQuery(() => db.watchHistory.filter((entry) => entry.isFavorite === true).toArray(), []);
+
+/** Live list of shows on the watchlist; re-renders when the watchlist changes. */
+const useWatchList = () =>
+    useLiveQuery(() => db.watchHistory.filter((entry) => entry.onWatchList === true).toArray(), []);
+
 /**
  * Updates the saved episode and/or playtime for a show, creating the entry
  * (starting at episode 1, 0:00) if the show hasn't been watched before.
@@ -51,4 +59,13 @@ const toggleFavorite = (title: string) => toggleField(title, "isFavorite");
 const toggleWatchList = (title: string) => toggleField(title, "onWatchList");
 
 export type { WatchHistory };
-export { db, addWatchHistory, useWatchHistory, updateWatchHistory, toggleFavorite, toggleWatchList };
+export {
+    db,
+    addWatchHistory,
+    useWatchHistory,
+    updateWatchHistory,
+    toggleFavorite,
+    toggleWatchList,
+    useFavorites,
+    useWatchList,
+};

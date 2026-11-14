@@ -112,75 +112,66 @@
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  position: relative;
   min-width: 0;
 }
 
-.card__button {
+.card__link {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.card__actions {
-  display: flex;
   gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-md);
 }
 
-.card__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-1);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+.card__link:focus-visible {
+  outline: none;
 }
 
-.card__action:hover {
-  color: var(--color-text);
-  border-color: var(--color-border);
+.card__link:focus-visible .card__poster {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-.card__action[aria-pressed="true"] {
-  color: #eef11c;
-}
-
-/* Poster slot. Holds an <img> later; shows a neutral placeholder for now. */
+/* Poster: image if we have one, otherwise a large initial. */
 .card__poster {
   position: relative;
   aspect-ratio: 2 / 3;
+  margin-bottom: var(--space-1);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-surface-raised);
+  background: linear-gradient(160deg, var(--grey-800), var(--grey-850));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  color: var(--color-text-subtle);
-  font-size: var(--text-3xl);
-  font-weight: var(--weight-semibold);
-  transition: border-color var(--transition-fast);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: border-color var(--transition-fast), box-shadow 200ms ease, transform 200ms ease;
 }
 
 .card__poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 300ms ease;
+}
+
+.card__initial {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-subtle);
+  user-select: none;
 }
 
 .card:hover .card__poster {
   border-color: var(--color-border-strong);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.45);
+  transform: translateY(-2px);
+}
+
+.card:hover .card__poster img {
+  transform: scale(1.04);
 }
 
 .card__title {
@@ -189,6 +180,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   line-height: 1.35;
   color: var(--color-text);
 }
@@ -198,36 +190,133 @@
   color: var(--color-text-muted);
 }
 
-/* ---- Empty / error states ---------------------------------------------- */
+/* Action buttons float over the poster's top-right corner. Hidden until the
+   card is hovered or focused, except ones that are switched on. */
+.card__actions {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+  transition: transform 200ms ease;
+}
+
+.card:hover .card__actions {
+  transform: translateY(-2px); /* follow the poster's lift */
+}
+
+.card__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 999px;
+  background-color: rgb(18 18 20 / 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--grey-300);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast),
+    background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.card:hover .card__action,
+.card:focus-within .card__action,
+.card__action[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.card__action:hover {
+  color: var(--grey-100);
+  background-color: rgb(18 18 20 / 0.9);
+  transform: scale(1.08);
+}
+
+.card__action:active {
+  transform: scale(0.95);
+}
+
+.card__action--favorite[aria-pressed="true"] {
+  color: #f5c84c;
+}
+
+.card__action--watchlist[aria-pressed="true"] {
+  color: var(--grey-950);
+  background-color: var(--grey-100);
+}
+
+/* Touch screens have no hover, so always show the actions there. */
+@media (hover: none) {
+  .card__action {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card__poster,
+  .card__poster img,
+  .card__actions,
+  .card__action {
+    transition: none;
+  }
+
+  .card:hover .card__poster,
+  .card:hover .card__actions,
+  .card:hover .card__poster img {
+    transform: none;
+  }
+}
+
+/* ---- Library ----------------------------------------------------------- */
+
+.library__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.library__heading svg {
+  color: var(--color-text-muted);
+}
+
+.count-badge {
+  min-width: 1.5rem;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.5rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+/* ---- Empty state ------------------------------------------------------- */
 
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-10) 0;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-5);
   text-align: center;
-}
-
-.empty-state__code {
-  font-size: var(--text-3xl);
-  font-weight: var(--weight-semibold);
   color: var(--color-text-subtle);
+  background-color: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
-.empty-state p {
+.empty-state__title {
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+
+.empty-state__hint {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
-}
-
-.empty-state .button {
-  margin-top: var(--space-3);
-}
-
-/* Player */
-.episode-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  list-style: none;
-  padding: 0;
 }
