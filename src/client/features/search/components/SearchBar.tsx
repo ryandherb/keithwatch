@@ -21,9 +21,11 @@ export default function SearchBar() {
     };
 
     return (
-        <form onSubmit={handleSearch}>
+        <form className="search-form" onSubmit={handleSearch}>
             <input
-                placeholder="search anime"
+                className="input"
+                placeholder="Search anime..."
+                aria-label="Search anime"
                 value={query}
                 onChange={handleQueryChange}
             />

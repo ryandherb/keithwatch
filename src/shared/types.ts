@@ -10,6 +10,7 @@
 export interface SearchResult {
   index: number;
   title: string;
+  image?: string; 
 }
 
 export type TranslationMode = "sub" | "dub";

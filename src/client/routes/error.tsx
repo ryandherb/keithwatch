@@ -11,10 +11,15 @@ export default function ErrorPage() {
       : "Unknown error";
 
   return (
-    <main className="app">
-      <h1>Something went wrong</h1>
-      <p>{message}</p>
-      <Link to="/">Go home</Link>
+    // Replaces the whole layout (header included), so it brings its own <main>.
+    <main className="page">
+      <div className="container empty-state">
+        <h1>Something went wrong</h1>
+        <p>{message}</p>
+        <Link to="/" className="button">
+          Go home
+        </Link>
+      </div>
     </main>
   );
 }

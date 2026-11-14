@@ -1,0 +1,66 @@
+/* Centred, width-limited wrapper. Use inside full-width bands (header, page). */
+.container {
+  width: 100%;
+  max-width: var(--container-width);
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+}
+
+/* ---- Site header ------------------------------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--color-header);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: var(--header-height);
+}
+
+.brand {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.brand:hover {
+  color: var(--color-text);
+}
+
+/* ---- Page body --------------------------------------------------------- */
+
+.page {
+  flex: 1;
+  padding: var(--space-6) 0 var(--space-10);
+}
+
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.page-header h1 {
+  font-size: var(--text-xl);
+}
+
+/* Section within a page, e.g. "Recently watched" */
+.section + .section {
+  margin-top: var(--space-8);
+}
+
+.section__title {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-lg);
+}

@@ -2,10 +2,12 @@ import { Link } from "react-router";
 
 export default function NotFoundPage() {
   return (
-    <>
-      <h1>404</h1>
+    <div className="empty-state">
+      <span className="empty-state__code">404</span>
       <p>This page doesn't exist.</p>
-      <Link to="/">Go home</Link>
-    </>
+      <Link to="/" className="button">
+        Go home
+      </Link>
+    </div>
   );
 }

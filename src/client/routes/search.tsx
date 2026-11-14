@@ -25,15 +25,20 @@ export default function SearchPage() {
     })
 
     return (
-        <div>
-            <h1>Search results for "{query}":</h1>
-            {searchResults.map((result, index) => (
-                <div key={index}>
-                    {result.title}
-                </div>  
-            ))}
-
-            
-        </div>
+        <section>
+            <header className="page-header">
+                <h1>Search results for "{query}"</h1>
+            </header>
+            <ul className="card-grid">
+                {searchResults.map((result, index) => (
+                    <li key={index} className="card">
+                        <div className="card__poster" aria-hidden="true">
+                            {result.title.charAt(0)}
+                        </div>
+                        <span className="card__title">{result.title}</span>
+                    </li>
+                ))}
+            </ul>
+        </section>
     )
 }
