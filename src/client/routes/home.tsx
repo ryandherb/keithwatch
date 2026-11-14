@@ -15,7 +15,7 @@ export default function HomePage() {
   }, [])
   return (
     <section className="hero">
-      <h1>Keithwatch</h1>
+      <h1>keithwatch</h1>
       <p>ani-cli companion app</p>
       {aniCliMissing ?
         <p role="alert">
