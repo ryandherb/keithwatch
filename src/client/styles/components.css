@@ -184,3 +184,12 @@
 .empty-state .button {
   margin-top: var(--space-3);
 }
+
+/* Player */
+.episode-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}

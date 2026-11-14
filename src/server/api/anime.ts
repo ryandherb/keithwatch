@@ -5,6 +5,9 @@
  *   GET /api/search?q=<query>
  *   GET /api/episodes?q=<query>&index=<n>[&mode=dub]
  *   GET /api/links?q=<query>&index=<n>&episode=<ep>[&mode=dub][&quality=720]
+ *
+ * Stream URLs in /api/links responses point at /api/stream (see ./stream.ts),
+ * because the stream host needs a Referer the browser can't send.
  */
 import type {
   ApiError,
@@ -14,6 +17,7 @@ import type {
   TranslationMode,
 } from "@shared/types";
 import * as aniCli from "../ani-cli";
+import { proxyUrl } from "./stream";
 
 export const handleSearch = handler(async (params, signal) => {
   const query = params.get("q") ?? "";
@@ -30,12 +34,18 @@ export const handleEpisodes = handler(async (params, signal) => {
 });
 
 export const handleLinks = handler(async (params, signal) => {
-  return (await aniCli.streamLinks(
+  const { links, selected, subtitles, referer } = await aniCli.streamLinks(
     params.get("q") ?? "",
     Number(params.get("index")),
     params.get("episode") ?? "",
     { mode: modeParam(params), quality: params.get("quality") ?? undefined, signal },
-  )) satisfies LinksResponse;
+  );
+  const proxy = (url: string) => proxyUrl(url, referer);
+  return {
+    links: links.map(({ quality, url }) => ({ quality, url: proxy(url) })),
+    selected: selected && proxy(selected),
+    subtitles: subtitles && proxy(subtitles),
+  } satisfies LinksResponse;
 });
 
 function modeParam(params: URLSearchParams): TranslationMode {
@@ -48,6 +58,9 @@ function handler(fn: (params: URLSearchParams, signal: AbortSignal) => Promise<u
     try {
       return Response.json(await fn(new URL(req.url).searchParams, req.signal));
     } catch (err) {
+      // The browser cancelled (navigated away, React StrictMode re-running an
+      // effect, ...). ani-cli was killed on purpose; nothing to report.
+      if (req.signal.aborted) return new Response(null, { status: 499 });
       const status = err instanceof aniCli.AniCliError ? err.status : 500;
       if (status >= 500) console.error(`${req.method} ${req.url} failed:`, err);
       const message = err instanceof Error ? err.message : String(err);

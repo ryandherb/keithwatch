@@ -4,6 +4,7 @@
  */
 import index from "../client/index.html";
 import { handleEpisodes, handleLinks, handleSearch } from "./api/anime";
+import { handleStream } from "./api/stream";
 
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3000),
@@ -12,6 +13,7 @@ const server = Bun.serve({
     "/api/search": { GET: handleSearch },
     "/api/episodes": { GET: handleEpisodes },
     "/api/links": { GET: handleLinks },
+    "/api/stream": { GET: handleStream },
     "/api/*": Response.json({ error: "Not found" }, { status: 404 }),
 
     // Everything else is the SPA; react-router handles client-side routes.

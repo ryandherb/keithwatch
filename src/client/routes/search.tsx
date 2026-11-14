@@ -1,11 +1,12 @@
 import { searchAnime } from "@/features/search/api/search";
 import type { SearchResult } from "@shared/types";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router"
+import { useNavigate, useSearchParams } from "react-router"
 
 export default function SearchPage() {
     const [searchParams] = useSearchParams();
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const navigate = useNavigate(); 
 
     const query = searchParams.get("q")
 
@@ -26,8 +27,16 @@ export default function SearchPage() {
         return () => controller.abort();
     }, [query])
 
-    const handleSelect = (title: string) => {
-        
+    const handleSelect = (result: SearchResult) => {
+        if (query == null) return;
+        // ani-cli identifies a show by (query, index), so the player needs the
+        // original query, not the title. The title is only for display.
+        const params = new URLSearchParams({
+            q: query,
+            i: String(result.index),
+            t: result.title,
+        });
+        navigate(`/player?${params}`);
     }
 
     return (
@@ -38,7 +47,7 @@ export default function SearchPage() {
             <ul className="card-grid">
                 {searchResults.map((result, index) => (
                     <li key={index} className="card">
-                        <button className="card_button" onClick={() => handleSelect(result.title)}>
+                        <button className="card_button" onClick={() => handleSelect(result)}>
                             <div className="card__poster" aria-hidden="true">
                                 {result.image ? (
                                     <img src={result.image} alt="" loading="lazy" />

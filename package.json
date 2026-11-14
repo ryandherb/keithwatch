@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "hls.js": "^1.7.4",
     "react": "^19",
     "react-dom": "^19",
     "react-router": "^8.5.1"

@@ -16,6 +16,10 @@
  *   search result and `-e <ep>` picks the episode. With ANI_CLI_PLAYER=debug,
  *   ani-cli then prints the stream links instead of opening a video player.
  *
+ *   The stream host rejects requests without the right Referer, which ani-cli
+ *   works out per episode but doesn't print in debug mode. For stream links we
+ *   run ani-cli under `sh -x` and read the `refr=...` assignment from the trace.
+ *
  * Results are identified by (query, index): ani-cli has no stable IDs, it just
  * numbers the search results for a query.
  */
@@ -90,6 +94,11 @@ export async function episodes(
   throw new AniCliError(stderr || "ani-cli exited without listing episodes");
 }
 
+/** Stream links plus the Referer the stream host expects (server-side only). */
+export interface StreamLinksWithReferer extends StreamLinks {
+  referer: string | null;
+}
+
 export interface StreamOptions extends AnimeOptions {
   /** "best", "worst" or a resolution like "720". Defaults to best. */
   quality?: string;
@@ -101,7 +110,7 @@ export async function streamLinks(
   index: number,
   episode: string,
   { mode = "sub", quality, signal }: StreamOptions = {},
-): Promise<StreamLinks> {
+): Promise<StreamLinksWithReferer> {
   if (!/^\d+(\.\d+)?$/.test(episode)) throw new AniCliError("Invalid episode number", 400);
   if (quality !== undefined && !/^(best|worst|\d{3,4}p?)$/.test(quality)) {
     throw new AniCliError("Invalid quality", 400);
@@ -114,11 +123,11 @@ export async function streamLinks(
     episode,
     ...(quality ? ["-q", quality] : []),
   ];
-  const { stdout, stderr, exitCode } = await exec(args, { signal });
+  const { stdout, stderr, exitCode, trace } = await exec(args, { signal, trace: true });
   if (exitCode !== 0 || !stdout.includes("Selected link:")) {
     throw new AniCliError(stderr || "ani-cli didn't return any links");
   }
-  return parseDebugOutput(stdout);
+  return { ...parseDebugOutput(stdout), referer: parseReferer(trace) };
 }
 
 /** The installed ani-cli version, e.g. "5.1.0". */
@@ -159,23 +168,40 @@ interface Menu {
   items: string[];
 }
 
+interface ExecOptions {
+  signal?: AbortSignal;
+  /** Run under `sh -x` and return the trace (see `parseReferer`). */
+  trace?: boolean;
+}
+
 interface ExecResult {
   stdout: string;
   /** ANSI codes stripped; ani-cli's error messages end up here. */
   stderr: string;
+  /** Raw `sh -x` trace when `trace` was set, otherwise "". */
+  trace: string;
   exitCode: number | null;
   /** The first menu ani-cli tried to show, or null if it never showed one. */
   menu: Menu | null;
 }
 
 /** Runs ani-cli non-interactively in a throwaway directory. */
-async function exec(args: string[], { signal }: { signal?: AbortSignal } = {}): Promise<ExecResult> {
+async function exec(args: string[], { signal, trace = false }: ExecOptions = {}): Promise<ExecResult> {
+  let cmd = ANI_CLI;
+  if (trace) {
+    // `sh -x` needs a path, not a bare command name.
+    const path = Bun.which(ANI_CLI);
+    if (!path) throw new AniCliError(`${ANI_CLI} not found on PATH`);
+    cmd = "sh";
+    args = ["-x", path, ...args];
+  }
+
   const shimDir = await getMenuShimDir();
   const workDir = await mkdtemp(join(tmpdir(), "keithwatch-run-"));
   const menuFile = join(workDir, "menu.txt");
 
   try {
-    const result = await run(ANI_CLI, args, {
+    const result = await run(cmd, args, {
       cwd: workDir,
       env: {
         PATH: `${shimDir}:${process.env.PATH ?? ""}`,
@@ -187,6 +213,8 @@ async function exec(args: string[], { signal }: { signal?: AbortSignal } = {}): 
         // Debug "playback" still records watch history; keep it out of the
         // user's real ani-cli history.
         ANI_CLI_HIST_DIR: workDir,
+        // Marks trace lines so they can be told apart from real stderr.
+        PS4: TRACE_PREFIX,
       },
       timeoutMs: TIMEOUT_MS,
       signal,
@@ -199,9 +227,11 @@ async function exec(args: string[], { signal }: { signal?: AbortSignal } = {}): 
       menu = { prompt, items: items.filter(Boolean) };
     }
 
+    const stderr = stripAnsi(result.stderr);
     return {
       stdout: stripAnsi(result.stdout),
-      stderr: stripAnsi(result.stderr).trim(),
+      stderr: trace ? lastErrorLine(stderr) : stderr.trim(),
+      trace: trace ? stderr : "",
       exitCode: result.exitCode,
       menu,
     };
@@ -244,6 +274,36 @@ function parseDebugOutput(stdout: string): StreamLinks {
     selected: section("Selected link", "Subtitles")[0] ?? links[0]?.url ?? "",
     subtitles: section("Subtitles")[0] ?? null,
   };
+}
+
+/** PS4 for traced runs. Nested subshells repeat the first character ("++kw-trace "). */
+const TRACE_PREFIX = "+kw-trace ";
+const TRACE_LINE = /^\++kw-trace /;
+
+/**
+ * Reads the Referer from an `sh -x` trace. ani-cli sets it with
+ * `refr="$(... embed url ...)"`, which the trace prints as `+kw-trace refr=https://host/`
+ * (possibly quoted). The last assignment wins, as in the script.
+ */
+function parseReferer(trace: string): string | null {
+  let referer: string | null = null;
+  for (const line of trace.split("\n")) {
+    const match = /^\+kw-trace refr='?(https?:\/\/[^'\s]+)'?$/.exec(line);
+    if (match) referer = match[1]!;
+  }
+  return referer;
+}
+
+/**
+ * With tracing on, stderr is mostly trace output (some of it multi-line). ani-cli's
+ * `die` prints its message and exits, so the last non-trace line is the error.
+ */
+function lastErrorLine(stderr: string): string {
+  const lines = stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !TRACE_LINE.test(line) && !line.startsWith("tput:"));
+  return lines.at(-1) ?? "";
 }
 
 const MENU_SHIM = `#!/bin/sh

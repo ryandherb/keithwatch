@@ -15,6 +15,10 @@ export interface SearchResult {
 
 export type TranslationMode = "sub" | "dub";
 
+/**
+ * Stream URLs for one episode. In API responses these are same-origin
+ * /api/stream?url=... paths (the server adds the Referer the host requires).
+ */
 export interface StreamLinks {
   /** Every quality ani-cli found, best first. `quality` is the height, e.g. "1080". */
   links: { quality: string; url: string }[];
