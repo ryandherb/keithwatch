@@ -1,5 +1,6 @@
 import { searchAnime } from "@/features/search/api/search";
 import AnimeCard from "@/features/search/components/AnimeCard";
+import { playerUrl } from "@/features/watch/urls";
 import type { SearchResult } from "@shared/types";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router"
@@ -27,17 +28,6 @@ export default function SearchPage() {
         return () => controller.abort();
     }, [query])
 
-    // ani-cli identifies a show by (query, index), so the player needs the
-    // original query, not the title. The title is only for display.
-    const playerUrl = (query: string, result: SearchResult) => {
-        const params = new URLSearchParams({
-            q: query,
-            i: String(result.index),
-            t: result.title,
-        });
-        return `/player?${params}`;
-    }
-
     return (
         <section>
             <header className="page-header">
@@ -49,7 +39,7 @@ export default function SearchPage() {
                         key={result.index}
                         title={result.title}
                         image={result.image}
-                        to={playerUrl(query, result)}
+                        to={playerUrl(query, result.index, result.title)}
                     />
                 ))}
             </ul>

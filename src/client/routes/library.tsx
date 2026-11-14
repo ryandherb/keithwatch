@@ -1,11 +1,16 @@
 import AnimeCard from "@/features/search/components/AnimeCard";
-import { useFavorites, useWatchList, type WatchHistory } from "@/lib/db";
-import { Eye, Star, type LucideIcon } from "lucide-react";
+import { useFavorites, useInProgress, useWatchList, type WatchHistory } from "@/lib/db";
+import { Eye, Play, Star, type LucideIcon } from "lucide-react";
+import { playerUrl, searchUrl } from "@/features/watch/urls";
 import { Link } from "react-router";
 
-// Saved entries only store the title, not the (query, index) pair the player
-// needs, so a library card re-runs the search for that title.
-const searchUrl = (title: string) => `/search?${new URLSearchParams({ q: title })}`;
+// Shows played since query/index started being saved reopen the player, which
+// resumes the saved episode. Older entries (or ones only favorited from a
+// search) fall back to searching the title.
+const entryUrl = (entry: WatchHistory) =>
+    entry.query != null && entry.index != null
+        ? playerUrl(entry.query, entry.index, entry.title)
+        : searchUrl(entry.title);
 
 interface LibrarySectionProps {
     heading: string;
@@ -33,7 +38,7 @@ function LibrarySection({ heading, icon: Icon, entries, emptyHint }: LibrarySect
             ) : (
                 <ul className="card-grid">
                     {entries.map((entry) => (
-                        <AnimeCard key={entry.title} title={entry.title} to={searchUrl(entry.title)} />
+                        <AnimeCard key={entry.title} title={entry.title} to={entryUrl(entry)} />
                     ))}
                 </ul>
             )}
@@ -44,12 +49,19 @@ function LibrarySection({ heading, icon: Icon, entries, emptyHint }: LibrarySect
 export default function Library() {
     const favorites = useFavorites();
     const watchList = useWatchList();
+    const inProgress = useInProgress();
 
     return (
         <>
             <header className="page-header">
                 <h1>My Library</h1>
             </header>
+            <LibrarySection
+                heading="Continue Watching"
+                icon={Play}
+                entries={inProgress}
+                emptyHint="Anime you've watched will appear here."
+            />
             <LibrarySection
                 heading="Favorites"
                 icon={Star}

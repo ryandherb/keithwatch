@@ -2,6 +2,15 @@ import { toggleFavorite, toggleWatchList, useWatchHistory } from "@/lib/db";
 import { Eye, Star } from "lucide-react";
 import { Link } from "react-router";
 
+/** Formats seconds as m:ss, or h:mm:ss past an hour. */
+const formatTime = (seconds: number) => {
+    const total = Math.floor(seconds);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = String(total % 60).padStart(2, "0");
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+};
+
 interface AnimeCardProps {
     title: string;
     image?: string;
@@ -13,8 +22,12 @@ export default function AnimeCard({ title, image, to }: AnimeCardProps) {
     const entry = useWatchHistory(title);
     const isFavorite = entry?.isFavorite ?? false;
     const onWatchList = entry?.onWatchList ?? false;
-    // Toggling a flag creates an entry at ep 1, 0:00, so only count real progress.
-    const inProgress = entry != null && (entry.playtime > 0 || entry.ep !== "1");
+    // e.g. "Ep 3 · 12:34", or just "Ep 3" if the episode was picked but not played.
+    const progress = entry?.hasWatched
+        ? entry.playtime >= 1
+            ? `Ep ${entry.ep} · ${formatTime(entry.playtime)}`
+            : `Ep ${entry.ep}`
+        : null;
 
     const handleFavorite = () => {
         toggleFavorite(title).catch((err) => console.warn("Couldn't update favorite:", err));
@@ -35,7 +48,7 @@ export default function AnimeCard({ title, image, to }: AnimeCardProps) {
                     )}
                 </div>
                 <span className="card__title">{title}</span>
-                {inProgress && <span className="card__meta">Ep {entry.ep}</span>}
+                {progress && <span className="card__meta">{progress}</span>}
             </Link>
             {/* Siblings of the card link, not children: buttons can't sit inside links.
                 Positioned over the poster's corner with CSS. */}

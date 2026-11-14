@@ -208,7 +208,7 @@ export default function PlayerPage() {
     // new episode.
     useEffect(() => {
         const video = videoRef.current;
-        if (!video || !historyReady || title == null) return;
+        if (!video || !historyReady || title == null || query == null) return;
 
         let lastSaved = 0;
         const save = () => {
@@ -216,7 +216,7 @@ export default function PlayerPage() {
             // Don't overwrite the saved position before we've seeked to it.
             if (ep == null || pendingSeekRef.current != null || video.readyState === 0) return;
             lastSaved = Date.now();
-            updateWatchHistory(title, { ep, playtime: video.currentTime }).catch((err) =>
+            updateWatchHistory(title, { ep, playtime: video.currentTime, query, index }).catch((err) =>
                 console.warn("Couldn't save watch history:", err),
             );
         };
@@ -230,15 +230,15 @@ export default function PlayerPage() {
             video.removeEventListener("timeupdate", onTimeUpdate);
             video.removeEventListener("pause", save);
         };
-    }, [historyReady, title]);
+    }, [historyReady, title, query, index]);
 
     /** Switches episode and records it as the show's current episode. */
     const selectEpisode = (ep: string) => {
         if (ep === currentEp) return;
         pendingSeekRef.current = null;
         updateParams({ ep });
-        if (title != null) {
-            updateWatchHistory(title, { ep, playtime: 0 }).catch((err) =>
+        if (title != null && query != null) {
+            updateWatchHistory(title, { ep, playtime: 0, query, index }).catch((err) =>
                 console.warn("Couldn't save watch history:", err),
             );
         }
